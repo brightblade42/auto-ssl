@@ -1,0 +1,40 @@
+# Org-mode files (keep locally, ignore in git for now)
+*.org
+
+# Build artifacts
+/auto-ssl-tui
+/dist/
+/bin/
+
+# Go
+tui/auto-ssl
+tui/vendor/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Secrets (should never be committed)
+*.key
+*.pem
+password
+*.enc
+
+# Backup files
+*.tar.gz.enc
+*.backup
+
+# Test artifacts
+coverage.out
+*.test
+
+# Local config
+.env
+.env.local

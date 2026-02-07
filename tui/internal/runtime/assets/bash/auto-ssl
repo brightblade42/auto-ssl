@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+#
+# auto-ssl - Internal PKI made easy
+#
+# Any server on your internal network can serve HTTPS that browsers trust.
+#
+# Usage: auto-ssl <command> [options]
+#
+# Commands:
+#   ca          CA server management (init, status, backup, restore)
+#   server      Server certificate management (enroll, renew, revoke)
+#   remote      Remote server management via SSH
+#   client      Client trust management
+#   info        Show environment information
+#   version     Show version
+#   help        Show help
+#
+
+set -euo pipefail
+
+#--------------------------------------------------
+# Resolve script location and load libraries
+#--------------------------------------------------
+
+# Get the real path of the script (resolve symlinks)
+get_script_dir() {
+    local source="${BASH_SOURCE[0]}"
+    while [[ -L "$source" ]]; do
+        local dir
+        dir=$(cd -P "$(dirname "$source")" && pwd)
+        source=$(readlink "$source")
+        [[ $source != /* ]] && source="$dir/$source"
+    done
+    cd -P "$(dirname "$source")" && pwd
+}
+
+SCRIPT_DIR=$(get_script_dir)
+
+# Determine library location
+# Check if we're running from repo (development) or installed
+if [[ -d "${SCRIPT_DIR}/lib" ]]; then
+    LIB_DIR="${SCRIPT_DIR}/lib"
+    CMD_DIR="${SCRIPT_DIR}/commands"
+elif [[ -d "${SCRIPT_DIR}/auto-ssl-lib" ]]; then
+    LIB_DIR="${SCRIPT_DIR}/auto-ssl-lib"
+    CMD_DIR="${SCRIPT_DIR}/auto-ssl-commands"
+elif [[ -d "/usr/local/bin/auto-ssl-lib" ]]; then
+    LIB_DIR="/usr/local/bin/auto-ssl-lib"
+    CMD_DIR="/usr/local/bin/auto-ssl-commands"
+else
+    echo "Error: Cannot find auto-ssl libraries" >&2
+    exit 1
+fi
+
+# Source libraries
+# shellcheck source=lib/common.sh
+source "${LIB_DIR}/common.sh"
+# shellcheck source=lib/detect.sh
+source "${LIB_DIR}/detect.sh"
+# shellcheck source=lib/ui.sh
+source "${LIB_DIR}/ui.sh"
+
+#--------------------------------------------------
+# Help text
+#--------------------------------------------------
+
+show_help() {
+    cat << 'HELP'
+auto-ssl - Internal PKI made easy
+
+Any server on your internal network can serve HTTPS that browsers trust.
+
+USAGE
+    auto-ssl <command> [subcommand] [options]
+
+COMMANDS
+    ca                  CA server management
+        init            Initialize this machine as the CA server
+        status          Show CA health and configuration
+        backup          Create encrypted backup of CA
+        restore         Restore CA from backup
+        reset           Remove CA and local auto-ssl state (start over)
+        backup-schedule Configure automatic backups
+
+    server              Server certificate management
+        enroll          Enroll this server (get certs, setup renewal)
+        status          Show certificate status and expiration
+        renew           Force immediate certificate renewal
+        suspend         Temporarily block certificate renewals
+        resume          Re-enable certificate renewals
+        revoke          Revoke certificate immediately
+        remove          Revoke certificate and remove from inventory
+
+    remote              Remote server management (run from CA server)
+        enroll          Enroll a server via SSH
+        status          Check remote server status
+        update-ca-url   Update CA URL on enrolled servers
+        list            List enrolled servers
+
+    client              Client trust management
+        trust           Install root CA into system trust store
+        status          Verify root CA is trusted
+
+    info                Show detected environment and configuration
+    version             Show version information
+    help                Show this help message
+
+EXAMPLES
+    # Initialize a new CA
+    sudo auto-ssl ca init --name "My Internal CA"
+
+    # Enroll a server
+    sudo auto-ssl server enroll --ca-url https://192.168.1.100:9000 --fingerprint abc123
+
+    # Trust CA on a client machine
+    sudo auto-ssl client trust --ca-url https://192.168.1.100:9000 --fingerprint abc123
+
+    # Enroll a remote server from the CA
+    auto-ssl remote enroll --host 192.168.1.50 --user admin
+
+    # Back up the CA
+    sudo auto-ssl ca backup --output /backup/ca-backup.enc
+
+DOCUMENTATION
+    Full documentation: https://github.com/yourname/auto-ssl/docs
+
+HELP
+}
+
+show_version() {
+    echo "auto-ssl version ${AUTO_SSL_VERSION}"
+    echo ""
+    echo "Components:"
+    echo "  step CLI:  $(get_step_version)"
+    echo "  step-ca:   $(get_step_ca_version)"
+}
+
+show_info() {
+    log_header "auto-ssl Environment Information"
+    print_detection_summary
+    echo ""
+    
+    log_header "Configuration"
+    echo "Config directory:  ${AUTO_SSL_CONFIG_DIR}"
+    echo "Data directory:    ${AUTO_SSL_DATA_DIR}"
+    echo "Cert directory:    ${AUTO_SSL_CERT_DIR}"
+    
+    if [[ -f "${AUTO_SSL_CONFIG_DIR}/config.yaml" ]]; then
+        echo ""
+        echo "Current configuration:"
+        cat "${AUTO_SSL_CONFIG_DIR}/config.yaml" | sed 's/^/  /'
+    fi
+}
+
+#--------------------------------------------------
+# Command routing
+#--------------------------------------------------
+
+# Load and run a command
+run_command() {
+    local category="$1"
+    local subcommand="${2:-}"
+    shift 2 || shift 1 || true
+    
+    local cmd_file="${CMD_DIR}/${category}.sh"
+    
+    if [[ ! -f "$cmd_file" ]]; then
+        die "Command category '$category' not found"
+    fi
+    
+    # Source the command file
+    # shellcheck source=/dev/null
+    source "$cmd_file"
+    
+    # Build function name
+    local func_name="cmd_${category}"
+    [[ -n "$subcommand" ]] && func_name="${func_name}_${subcommand//-/_}"
+    
+    # Check if function exists
+    if ! declare -f "$func_name" &>/dev/null; then
+        # Try category help
+        if declare -f "cmd_${category}_help" &>/dev/null; then
+            "cmd_${category}_help"
+        else
+            die "Unknown subcommand: $category $subcommand"
+        fi
+        exit 1
+    fi
+    
+    # Run the command
+    "$func_name" "$@"
+}
+
+#--------------------------------------------------
+# Main
+#--------------------------------------------------
+
+main() {
+    # No arguments - show help
+    if [[ $# -eq 0 ]]; then
+        show_help
+        exit 0
+    fi
+    
+    local command="$1"
+    shift
+    
+    case "$command" in
+        # Top-level commands
+        help|-h|--help)
+            show_help
+            ;;
+        version|-v|--version)
+            show_version
+            ;;
+        info)
+            show_info
+            ;;
+        
+        # Command categories
+        ca|server|remote|client)
+            run_command "$command" "$@"
+            ;;
+        
+        # Unknown command
+        *)
+            log_error "Unknown command: $command"
+            echo ""
+            echo "Run 'auto-ssl help' for usage information."
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
