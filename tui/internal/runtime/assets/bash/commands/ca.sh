@@ -336,15 +336,6 @@ cmd_ca_init() {
     log_step "Creating systemd service..."
     _create_ca_service "$pw_file"
     
-    # Start the service
-    log_step "Starting step-ca service..."
-    systemctl daemon-reload
-    systemctl enable step-ca
-    systemctl start step-ca
-    
-    # Wait for CA to be ready
-    ui_spin_until "Waiting for CA to be ready" "curl -sk https://${address}/health" 30
-    
     # Get fingerprint
     local fingerprint
     fingerprint=$(step certificate fingerprint "${STEP_CA_PATH}/certs/root_ca.crt")
@@ -363,6 +354,18 @@ defaults:
   max_cert_duration: ${max_duration}
 EOF
     chmod 600 "${AUTO_SSL_CONFIG_DIR}/config.yaml"
+
+    # Start the service
+    log_step "Starting step-ca service..."
+    systemctl daemon-reload
+    systemctl enable step-ca
+    systemctl start step-ca
+
+    # Wait for CA to be ready (non-fatal; service may need extra time)
+    if ! ui_spin_until "Waiting for CA to be ready" "curl -sk https://${address}/health" 45; then
+        log_warning "CA health check did not become ready in time"
+        log_info "Run 'auto-ssl ca status' in a few seconds to confirm service health"
+    fi
     
     # Open firewall if firewalld is active
     if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
@@ -394,6 +397,48 @@ curl -k -o root_ca.crt https://${address}/roots.pem"
 
 cmd_ca_status() {
     log_header "CA Status"
+
+    # Recover config if CA exists but config.yaml is missing
+    if [[ ! -f "${AUTO_SSL_CONFIG_DIR}/config.yaml" ]] && [[ -f "${STEP_CA_CONFIG}" ]] && [[ -f "${STEP_CA_PATH}/certs/root_ca.crt" ]]; then
+        log_warning "Config file missing; attempting to recover from existing CA state..."
+
+        local recovered_address=""
+        if has_jq; then
+            recovered_address=$(jq -r '.address // empty' "${STEP_CA_CONFIG}" 2>/dev/null || true)
+        else
+            recovered_address=$(grep -m1 '"address"' "${STEP_CA_CONFIG}" | sed 's/.*"address"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
+        fi
+
+        local recovered_url=""
+        [[ -n "$recovered_address" ]] && recovered_url="https://${recovered_address}"
+
+        local recovered_fingerprint=""
+        recovered_fingerprint=$(step certificate fingerprint "${STEP_CA_PATH}/certs/root_ca.crt" 2>/dev/null || true)
+
+        local recovered_name="Internal CA"
+        if command -v openssl &>/dev/null; then
+            local subject
+            subject=$(openssl x509 -in "${STEP_CA_PATH}/certs/root_ca.crt" -noout -subject 2>/dev/null || true)
+            local cn
+            cn=$(echo "$subject" | sed -n 's/.*CN[[:space:]]*=[[:space:]]*\([^,/]*\).*/\1/p')
+            [[ -n "$cn" ]] && recovered_name="$cn"
+        fi
+
+        mkdir -p "${AUTO_SSL_CONFIG_DIR}"
+        cat > "${AUTO_SSL_CONFIG_DIR}/config.yaml" << EOF
+ca:
+  url: ${recovered_url}
+  fingerprint: ${recovered_fingerprint}
+  name: ${recovered_name}
+  steppath: ${STEP_CA_PATH}
+
+defaults:
+  cert_duration: 168h
+  max_cert_duration: 720h
+EOF
+        chmod 600 "${AUTO_SSL_CONFIG_DIR}/config.yaml"
+        log_success "Recovered CA config at ${AUTO_SSL_CONFIG_DIR}/config.yaml"
+    fi
     
     # Check if CA is configured
     if [[ ! -f "${AUTO_SSL_CONFIG_DIR}/config.yaml" ]]; then
