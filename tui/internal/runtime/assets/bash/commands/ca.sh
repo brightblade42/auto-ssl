@@ -646,10 +646,16 @@ EOF
         -in "$archive" \
         -out "${tmp_dir}/backup.enc" \
         -pass "pass:${passphrase}"
+
+    local size
+    size=$(du -h "${tmp_dir}/backup.enc" | cut -f1)
     
     # Handle destination
     case "$dest_type" in
         local)
+            local output_dir
+            output_dir=$(dirname "$output")
+            [[ -n "$output_dir" ]] && mkdir -p "$output_dir"
             log_step "Saving to ${output}..."
             mv "${tmp_dir}/backup.enc" "$output"
             chmod 600 "$output"
@@ -671,9 +677,6 @@ EOF
             die "Unknown destination type: $dest_type"
             ;;
     esac
-    
-    local size
-    size=$(du -h "${tmp_dir}/backup.enc" | cut -f1)
     
     echo ""
     log_success "Backup created successfully!"
