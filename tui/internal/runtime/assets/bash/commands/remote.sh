@@ -201,9 +201,24 @@ cmd_remote_enroll() {
     
     log_header "Remote Enrollment: ${host}"
     
-    # Build SSH command
-    local ssh_opts=(-o "StrictHostKeyChecking=accept-new" -p "$port")
+    # Build SSH/SCP options
+    local control_path="/tmp/auto-ssl-ssh-${user}@${host}-${port}"
+    local ssh_opts=(
+        -o "StrictHostKeyChecking=accept-new"
+        -o "ControlMaster=auto"
+        -o "ControlPersist=5m"
+        -o "ControlPath=${control_path}"
+        -p "$port"
+    )
+    local scp_opts=(
+        -o "StrictHostKeyChecking=accept-new"
+        -o "ControlMaster=auto"
+        -o "ControlPersist=5m"
+        -o "ControlPath=${control_path}"
+        -P "$port"
+    )
     [[ -n "$identity" ]] && ssh_opts+=(-i "$identity")
+    [[ -n "$identity" ]] && scp_opts+=(-i "$identity")
     
     local ssh_target="${user}@${host}"
     
@@ -240,7 +255,7 @@ cmd_remote_enroll() {
     cleanup_add "rm -f '$tmp_tar'"
     tar -C "$bundle_dir" -czf "$tmp_tar" .
 
-    scp "${ssh_opts[@]}" "$tmp_tar" "${ssh_target}:/tmp/auto-ssl-runtime.tgz"
+    scp "${scp_opts[@]}" "$tmp_tar" "${ssh_target}:/tmp/auto-ssl-runtime.tgz"
     ssh "${ssh_opts[@]}" "$ssh_target" "rm -rf /tmp/auto-ssl-runtime && mkdir -p /tmp/auto-ssl-runtime && tar -xzf /tmp/auto-ssl-runtime.tgz -C /tmp/auto-ssl-runtime && chmod +x /tmp/auto-ssl-runtime/auto-ssl"
     
     # Build SAN arguments
@@ -294,6 +309,9 @@ cmd_remote_enroll() {
     echo "  User:     ${user}"
     echo ""
     echo "The server now has valid certificates and automatic renewal configured."
+
+    # Close multiplexed SSH master connection if present
+    ssh "${ssh_opts[@]}" -O exit "$ssh_target" >/dev/null 2>&1 || true
 }
 
 #--------------------------------------------------
