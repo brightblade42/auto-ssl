@@ -172,8 +172,12 @@ cmd_server_enroll() {
     # Get password if needed
     local password=""
     if [[ -n "$password_file" ]]; then
-        require_file "$password_file" "Password file"
-        password=$(cat "$password_file")
+        if [[ "$password_file" == "/dev/stdin" ]]; then
+            password=$(cat)
+        else
+            require_file "$password_file" "Password file"
+            password=$(cat "$password_file")
+        fi
         [[ -z "$password" ]] && die "Password file is empty: ${password_file}"
     elif [[ "$non_interactive" == true ]]; then
         die "Non-interactive mode requires --password-file"
