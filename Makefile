@@ -33,7 +33,7 @@ build-tui: ## Build the Go TUI application
 install: install-tui install-wrapper ## Install auto-ssl-tui and auto-ssl wrapper
 	@echo "Installation complete"
 
-install-tui: build-tui ## Install Go TUI application
+install-tui: ## Install Go TUI application
 	@echo "Installing TUI..."
 	install -m 755 bin/auto-ssl-tui $(INSTALL_DIR)/auto-ssl-tui
 	@echo "TUI installed to $(INSTALL_DIR)/auto-ssl-tui"

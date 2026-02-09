@@ -182,6 +182,10 @@ type clientTrustResult struct {
 
 func (m ClientTrustModel) runTrust() tea.Cmd {
 	return func() tea.Msg {
+		if err := rt.RequireRoot("client trust installation"); err != nil {
+			return clientTrustResult{err: err}
+		}
+
 		caURL := strings.TrimSpace(m.inputs[0].Value())
 		fingerprint := strings.TrimSpace(m.inputs[1].Value())
 

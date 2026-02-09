@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"github.com/Brightblade42/auto-ssl/internal/runtime"
 	"github.com/Brightblade42/auto-ssl/internal/types"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -118,11 +119,16 @@ func (m WelcomeModel) Update(msg tea.Msg) (WelcomeModel, tea.Cmd) {
 func (m WelcomeModel) View() string {
 	title := titleStyle.Render("Welcome to auto-ssl")
 	desc := descStyle.Render("INTERNAL PKI // READY // SELECT A WORKFLOW")
+	rootHint := ""
+	if !runtime.IsRoot() {
+		rootHint = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("Most CA/server workflows require sudo. Rerun as: sudo auto-ssl-tui")
+	}
 
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
 		desc,
+		rootHint,
 		m.list.View(),
 	)
 

@@ -184,6 +184,10 @@ type backupResult struct {
 
 func (m BackupModel) runBackup() tea.Cmd {
 	return func() tea.Msg {
+		if err := rt.RequireRoot("CA backup"); err != nil {
+			return backupResult{err: err}
+		}
+
 		outputPath := strings.TrimSpace(m.inputs[0].Value())
 		passphrase := m.inputs[1].Value()
 

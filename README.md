@@ -122,6 +122,12 @@ auto-ssl-tui dump-bash --output ./auto-ssl-bash --checksum
 auto-ssl-tui exec -- server status
 ```
 
+For CA/server/trust/dependency-install workflows on Linux, run TUI with sudo:
+
+```bash
+sudo auto-ssl-tui
+```
+
 ## Linux Validation Script
 
 For a fresh Linux VM validation pass (CA init, enroll, renew, trust, backup, companion CLI checks), run:

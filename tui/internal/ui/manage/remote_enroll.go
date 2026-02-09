@@ -207,6 +207,10 @@ type enrollmentResult struct {
 
 func (m RemoteEnrollModel) runEnrollment() tea.Cmd {
 	return func() tea.Msg {
+		if err := rt.RequireRoot("remote enrollment"); err != nil {
+			return enrollmentResult{err: err}
+		}
+
 		host := strings.TrimSpace(m.inputs[0].Value())
 		user := strings.TrimSpace(m.inputs[1].Value())
 		name := strings.TrimSpace(m.inputs[2].Value())

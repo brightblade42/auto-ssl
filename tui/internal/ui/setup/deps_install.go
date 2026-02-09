@@ -97,6 +97,10 @@ type depInstallResult struct {
 
 func (m DependencyInstallModel) runInstall() tea.Cmd {
 	return func() tea.Msg {
+		if err := runtime.RequireRoot("dependency installation"); err != nil {
+			return depInstallResult{err: err}
+		}
+
 		if err := runtime.InstallDependencies(true); err != nil {
 			return depInstallResult{err: err}
 		}

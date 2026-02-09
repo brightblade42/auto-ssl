@@ -28,6 +28,7 @@ All notable changes to this project are documented in this file.
 - Server non-interactive enrollment now enforces password-file requirements.
 - Removed dead TUI navigation path to non-implemented settings screen.
 - Replaced unsafe shell-interpolated secret-file writes in Go with secure temp-file handling.
+- TUI now gives explicit root-privilege guidance for privileged workflows instead of failing with ambiguous errors.
 
 ### Notes
 - macOS support is aimed at development/operator workflows.

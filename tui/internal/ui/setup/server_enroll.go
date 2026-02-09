@@ -203,6 +203,10 @@ type serverEnrollResult struct {
 
 func (m ServerEnrollModel) runEnrollment() tea.Cmd {
 	return func() tea.Msg {
+		if err := rt.RequireRoot("server enrollment"); err != nil {
+			return serverEnrollResult{err: err}
+		}
+
 		caURL := strings.TrimSpace(m.inputs[0].Value())
 		fingerprint := strings.TrimSpace(m.inputs[1].Value())
 		password := m.inputs[2].Value()

@@ -255,6 +255,10 @@ func (m CAInitModel) validate() tea.Cmd {
 
 func (m CAInitModel) runInit() tea.Cmd {
 	return func() tea.Msg {
+		if err := rt.RequireRoot("CA initialization"); err != nil {
+			return initResult{err: err}
+		}
+
 		name := strings.TrimSpace(m.inputs[0].Value())
 		address := strings.TrimSpace(m.inputs[1].Value())
 		password := m.inputs[2].Value()
