@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -20,10 +21,34 @@ var (
 
 func main() {
 	manager := runtime.NewManager(Version)
+	prog := path.Base(os.Args[0])
+
+	if prog == "auto-ssl" {
+		if len(os.Args) > 1 && os.Args[1] == "tools" {
+			if err := runTools(manager, os.Args[2:]); err != nil {
+				fmt.Fprintf(os.Stderr, "tools failed: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+		if err := runAutoSSL(manager, os.Args[1:]); err != nil {
+			fmt.Fprintf(os.Stderr, "auto-ssl failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if len(os.Args) <= 1 {
 		printUsage()
 		os.Exit(2)
+	}
+
+	if os.Args[1] == "tools" {
+		if err := runTools(manager, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "tools failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	switch os.Args[1] {
@@ -71,15 +96,63 @@ func main() {
 
 }
 
+func runTools(manager *runtime.Manager, args []string) error {
+	if len(args) == 0 {
+		printToolsUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "--help", "-h", "help":
+		printToolsUsage()
+		return nil
+	case "doctor":
+		return runDoctor(args[1:])
+	case "install-deps":
+		autoYes := false
+		for _, arg := range args[1:] {
+			if arg == "--yes" {
+				autoYes = true
+				continue
+			}
+			return fmt.Errorf("unknown option: %s", arg)
+		}
+		return runtime.InstallDependencies(autoYes)
+	case "dump-bash":
+		return runDumpBash(manager, args[1:])
+	default:
+		return fmt.Errorf("unknown tools command: %s", args[0])
+	}
+}
+
+func runAutoSSL(manager *runtime.Manager, args []string) error {
+	path, err := manager.AutoSSLPath()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(path, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
 func printUsage() {
-	fmt.Println("auto-ssl-tui - bootstrap/helper companion for auto-ssl")
+	fmt.Println("auto-ssl-tui - compatibility alias for auto-ssl tools")
 	fmt.Println("")
 	fmt.Println("Usage:")
 	fmt.Println("  auto-ssl-tui --version")
-	fmt.Println("  auto-ssl-tui doctor [--json]")
-	fmt.Println("  auto-ssl-tui install-deps [--yes]")
-	fmt.Println("  auto-ssl-tui dump-bash [--output DIR] [--force] [--print-path] [--checksum]")
+	fmt.Println("  auto-ssl-tui tools doctor [--json]")
+	fmt.Println("  auto-ssl-tui tools install-deps [--yes]")
+	fmt.Println("  auto-ssl-tui tools dump-bash [--output DIR] [--force] [--print-path] [--checksum]")
 	fmt.Println("  auto-ssl-tui exec -- <auto-ssl args>")
+}
+
+func printToolsUsage() {
+	fmt.Println("Usage:")
+	fmt.Println("  auto-ssl tools doctor [--json]")
+	fmt.Println("  auto-ssl tools install-deps [--yes]")
+	fmt.Println("  auto-ssl tools dump-bash [--output DIR] [--force] [--print-path] [--checksum]")
 }
 
 func runDumpBash(manager *runtime.Manager, args []string) error {

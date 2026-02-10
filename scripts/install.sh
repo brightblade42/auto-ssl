@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # auto-ssl installer
-# Installs auto-ssl-tui helper plus a compatibility auto-ssl wrapper
+# Installs auto-ssl (Go companion router) plus auto-ssl-tui compatibility alias
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/Brightblade42/auto-ssl/main/scripts/install.sh | bash
@@ -103,15 +103,23 @@ download_release() {
     local arch="$2"
     local dest="$3"
 
-    local url="https://github.com/${REPO}/releases/latest/download/auto-ssl-tui-${os}-${arch}"
+    local url="https://github.com/${REPO}/releases/latest/download/auto-ssl-${os}-${arch}"
+    local legacy_url="https://github.com/${REPO}/releases/latest/download/auto-ssl-tui-${os}-${arch}"
 
-    log_info "Downloading auto-ssl-tui from ${url}..."
+    log_info "Downloading auto-ssl from ${url}..."
 
-    if ! curl -fsSL -o "$dest" "$url"; then
-        die "Failed to download from ${url}"
+    if curl -fsSL -o "$dest" "$url"; then
+        log_success "Downloaded auto-ssl"
+        return
     fi
 
-    log_success "Downloaded auto-ssl-tui"
+    log_warning "Primary release asset unavailable, trying compatibility asset..."
+    if curl -fsSL -o "$dest" "$legacy_url"; then
+        log_success "Downloaded compatibility release asset"
+        return
+    fi
+
+    die "Failed to download release asset (${url} and ${legacy_url})"
 }
 
 install_from_source() {
@@ -125,21 +133,21 @@ install_from_source() {
     log_info "Cloning repository..."
     git clone --depth 1 "https://github.com/${REPO}.git" "$tmp_dir/auto-ssl"
     
-    # Build companion helper
+    # Build companion binary
     if ! command -v go &>/dev/null; then
         die "Go is required for --from-source installs"
     fi
-    log_info "Building auto-ssl-tui companion..."
+    log_info "Building auto-ssl companion..."
     cd "${tmp_dir}/auto-ssl/tui"
-    go build -o "${tmp_dir}/auto-ssl-tui" ./cmd/auto-ssl
+    go build -o "${tmp_dir}/auto-ssl" ./cmd/auto-ssl
 
-    # Install binary + wrapper
-    log_info "Installing auto-ssl-tui..."
+    # Install binary + compatibility alias
+    log_info "Installing auto-ssl..."
     install -d "${INSTALL_PREFIX}/bin"
-    install -m 755 "${tmp_dir}/auto-ssl-tui" "${INSTALL_PREFIX}/bin/auto-ssl-tui"
-    install -m 755 "${tmp_dir}/auto-ssl/scripts/auto-ssl-wrapper.sh" "${INSTALL_PREFIX}/bin/auto-ssl"
+    install -m 755 "${tmp_dir}/auto-ssl" "${INSTALL_PREFIX}/bin/auto-ssl"
+    ln -sf auto-ssl "${INSTALL_PREFIX}/bin/auto-ssl-tui"
 
-    log_success "Installed auto-ssl-tui and auto-ssl wrapper"
+    log_success "Installed auto-ssl with auto-ssl-tui compatibility alias"
 }
 
 install_from_release() {
@@ -153,20 +161,13 @@ install_from_release() {
     trap "rm -rf '$tmp_dir'" EXIT
     
     # Download and install companion binary
-    download_release "$os" "$arch" "${tmp_dir}/auto-ssl-tui"
+    download_release "$os" "$arch" "${tmp_dir}/auto-ssl"
 
     install -d "${INSTALL_PREFIX}/bin"
-    install -m 755 "${tmp_dir}/auto-ssl-tui" "${INSTALL_PREFIX}/bin/auto-ssl-tui"
-
-    # Install compatibility wrapper
-    cat > "${tmp_dir}/auto-ssl" << 'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-exec auto-ssl-tui exec -- "$@"
-EOF
     install -m 755 "${tmp_dir}/auto-ssl" "${INSTALL_PREFIX}/bin/auto-ssl"
+    ln -sf auto-ssl "${INSTALL_PREFIX}/bin/auto-ssl-tui"
 
-    log_success "Installed auto-ssl-tui and auto-ssl wrapper"
+    log_success "Installed auto-ssl with auto-ssl-tui compatibility alias"
 }
 
 install_dependencies() {
@@ -214,8 +215,8 @@ show_completion() {
     echo ""
     echo -e "${GREEN}${BOLD}Installation complete!${RESET}"
     echo ""
-    echo "  auto-ssl-tui is now available at: ${INSTALL_PREFIX}/bin/auto-ssl-tui"
-    echo "  auto-ssl wrapper is now available at: ${INSTALL_PREFIX}/bin/auto-ssl"
+    echo "  auto-ssl is now available at: ${INSTALL_PREFIX}/bin/auto-ssl"
+    echo "  auto-ssl-tui compatibility alias is at: ${INSTALL_PREFIX}/bin/auto-ssl-tui"
     echo ""
     echo "Quick start:"
     echo ""
@@ -229,8 +230,8 @@ show_completion() {
     echo "  sudo auto-ssl client trust --ca-url https://CA_IP:9000 --fingerprint FINGERPRINT"
     echo ""
     echo "  # Companion helper commands"
-    echo "  auto-ssl-tui doctor"
-    echo "  auto-ssl-tui exec -- server status"
+    echo "  auto-ssl tools doctor"
+    echo "  auto-ssl tools dump-bash --output ./auto-ssl-bash --checksum"
     echo ""
     echo "Documentation: https://github.com/${REPO}"
     echo ""
@@ -243,7 +244,7 @@ show_completion() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --with-tui|--no-tui)
-            log_warning "$1 is deprecated. auto-ssl-tui is always installed."
+            log_warning "$1 is deprecated. auto-ssl and auto-ssl-tui alias are always installed."
             shift
             ;;
         --prefix)
