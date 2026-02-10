@@ -1,237 +1,196 @@
 # Caddy Integration Guide
 
-Caddy has native ACME support, making it the easiest web server to integrate with auto-ssl.
+This guide covers production-oriented Caddy patterns for internal ACME with `step-ca`, including rootless Podman.
 
-## Why Caddy?
+## Key behavior to understand first
 
-- **Automatic HTTPS**: Built-in ACME client
-- **Auto-renewal**: Handles renewals automatically  
-- **Simple config**: No complex SSL directives
-- **Zero-downtime reloads**: Updates certs without restarting
+For IP and other internal host labels, Caddy Automatic HTTPS prefers its internal issuer (`Caddy Local Authority`) unless you explicitly set an ACME issuer.
 
-## Installation
+That is why this often happens:
 
-### RHEL/Rocky/CentOS
+- Global `acme_ca` and `acme_ca_root` are set.
+- A site address is an IP (for example `192.168.3.50`).
+- Caddy still serves certs from `Caddy Local Authority`.
 
-```bash
-dnf install 'dnf-command(copr)'
-dnf copr enable @caddy/caddy
-dnf install caddy
-```
+For internal IP hostnames, use one of these:
 
-### Ubuntu/Debian
+1. Per-site `tls { issuer acme { ... } }` (most explicit and reliable)
+2. Global `cert_issuer acme { ... }` (applies ACME as default issuer across sites)
 
-```bash
-sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt update
-sudo apt install caddy
-```
+`acme_ca` alone only sets the ACME directory URL; it does not force issuer selection for names Caddy classifies as local/internal.
 
-## Configuration
+## Recommended Caddyfile patterns
 
-### Basic Setup with ACME
+Use one of these two patterns consistently.
 
-Edit `/etc/caddy/Caddyfile`:
+### Pattern A: Per-site explicit ACME issuer (recommended)
 
-```
-# Global options
+Best when you want no ambiguity and clear behavior per site.
+
+```caddyfile
 {
-    # Point to your internal CA
-    acme_ca https://192.168.1.100:9000/acme/acme/directory
-    
-    # Trust your CA's root certificate
-    acme_ca_root /etc/ssl/auto-ssl/root_ca.crt
-    
-    # Email for important notifications
-    email admin@example.com
+    email infra@example.internal
 }
 
-# Site configuration
-192.168.1.50 {
-    reverse_proxy localhost:8080
-}
-```
-
-### Multiple Sites
-
-```
-{
-    acme_ca https://192.168.1.100:9000/acme/acme/directory
-    acme_ca_root /etc/ssl/auto-ssl/root_ca.crt
-}
-
-# App server 1
-192.168.1.50 {
-    reverse_proxy localhost:8080
-}
-
-# App server 2
-192.168.1.51 {
-    reverse_proxy localhost:3000
-}
-
-# Named host
-myapp.internal {
-    reverse_proxy localhost:8080
-    log {
-        output file /var/log/caddy/myapp.log
-    }
-}
-```
-
-### Static Site
-
-```
-{
-    acme_ca https://192.168.1.100:9000/acme/acme/directory
-    acme_ca_root /etc/ssl/auto-ssl/root_ca.crt
-}
-
-192.168.1.50 {
-    root * /var/www/html
-    file_server
-}
-```
-
-## Trust the CA
-
-Before Caddy can verify your CA's certificates, install the root CA:
-
-```bash
-# Download root CA
-sudo mkdir -p /etc/ssl/auto-ssl
-curl -k https://192.168.1.100:9000/roots.pem | sudo tee /etc/ssl/auto-ssl/root_ca.crt
-```
-
-Or if you enrolled this server:
-```bash
-# Root CA is already at:
-# /root/.step/certs/root_ca.crt
-sudo cp /root/.step/certs/root_ca.crt /etc/ssl/auto-ssl/root_ca.crt
-```
-
-## Start Caddy
-
-```bash
-# Enable and start
-sudo systemctl enable caddy
-sudo systemctl start caddy
-
-# Check status
-sudo systemctl status caddy
-
-# View logs
-sudo journalctl -u caddy -f
-```
-
-## Verify HTTPS
-
-```bash
-# From another machine
-curl https://192.168.1.50
-
-# Check certificate
-openssl s_client -connect 192.168.1.50:443 -showcerts
-```
-
-## Troubleshooting
-
-### "Obtaining certificate: error getting certificate from certificate authority"
-
-**Cause**: Can't reach ACME endpoint
-
-**Fix**:
-```bash
-# Test CA connectivity
-curl https://192.168.1.100:9000/acme/acme/directory
-
-# Check Caddy can reach CA
-sudo journalctl -u caddy -n 50 | grep acme
-```
-
-### "Remote error: tls: unknown certificate authority"
-
-**Cause**: Caddy doesn't trust your CA
-
-**Fix**: Ensure `acme_ca_root` points to correct file:
-```bash
-ls -l /etc/ssl/auto-ssl/root_ca.crt
-# File should exist and be readable
-```
-
-### Certificate Not Renewing
-
-**Diagnosis**:
-```bash
-# Caddy renews automatically at 2/3 of certificate lifetime
-# For 7-day certs, that's ~5 days
-
-# Check Caddy logs for renewal attempts
-sudo journalctl -u caddy | grep -i renew
-```
-
-**Manual renewal**:
-```bash
-# Reload Caddy (triggers cert check)
-sudo systemctl reload caddy
-```
-
-## Advanced Configuration
-
-### Custom TLS Settings
-
-```
-192.168.1.50 {
+https://192.168.3.50 {
     tls {
-        protocols tls1.2 tls1.3
-        ciphers TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        issuer acme {
+            dir https://192.168.3.225:9000/acme/acme/directory
+            trusted_roots /etc/caddy/step-root-ca.crt
+        }
     }
-    reverse_proxy localhost:8080
+
+    reverse_proxy 127.0.0.1:8080
+}
+
+https://100.101.102.103 {
+    tls {
+        issuer acme {
+            dir https://192.168.3.225:9000/acme/acme/directory
+            trusted_roots /etc/caddy/step-root-ca.crt
+        }
+    }
+
+    reverse_proxy 127.0.0.1:9090
 }
 ```
 
-### Automatic HTTPS Redirect
+### Pattern B: Global default ACME issuer
 
-```
-192.168.1.50 {
-    # Automatically redirects HTTP -> HTTPS
-    redir https://{host}{uri} permanent
-}
-```
+Best when all sites should always use the same internal ACME issuer.
 
-### Environment-Specific Config
-
-```
+```caddyfile
 {
-    # Development
-    acme_ca https://192.168.1.100:9000/acme/acme/directory
-    acme_ca_root /etc/ssl/auto-ssl/root_ca.crt
-    
-    # Production: use staging first!
-    # acme_ca https://ca.prod.internal:9000/acme/acme/directory
-    # acme_ca_root /etc/ssl/auto-ssl/prod-root-ca.crt
+    email infra@example.internal
+
+    cert_issuer acme {
+        dir https://192.168.3.225:9000/acme/acme/directory
+        trusted_roots /etc/caddy/step-root-ca.crt
+    }
+}
+
+https://192.168.3.50 {
+    reverse_proxy 127.0.0.1:8080
+}
+
+https://100.101.102.103 {
+    reverse_proxy 127.0.0.1:9090
 }
 ```
 
-## Best Practices
+Notes:
 
-1. **Use ACME with Caddy** instead of manual enrollment
-2. **Set email** for notifications
-3. **Monitor Caddy logs** for cert issues
-4. **Test with curl** before browser
-5. **Keep Caddy updated** for security fixes
+- If you use Pattern B, you usually do not need `acme_ca`/`acme_ca_root`.
+- If a site should use local certs, override that site with `tls internal`.
 
-## Performance
+## Rootless Podman deployment (Linux-first)
 
-Caddy's HTTPS overhead is minimal:
-- ~1-2ms additional latency
-- Minimal CPU usage
-- HTTP/2 support out of the box
+### Why cert trust fails in containers
 
-## Next Steps
+Rootless containers do not automatically inherit host trust stores in a way Caddy can always use for private ACME endpoints. Mount your `step-ca` root PEM and point Caddy to it with `trusted_roots`.
 
-- [Server Enrollment](server-enrollment.md) - Manual cert management
-- [nginx Integration](nginx-integration.md) - For nginx users
-- [Troubleshooting](troubleshooting.md) - Common issues
+### Required mounts
+
+- `Caddyfile` mounted read-only.
+- `step-ca` root certificate mounted read-only.
+- Persistent Caddy data dir for cert/cache state.
+- Persistent Caddy config dir.
+
+Example host paths used below:
+
+- `./Caddyfile`
+- `./pki/root_ca.crt`
+- `./caddy-data`
+- `./caddy-config`
+
+## Rootless Podman run template
+
+```bash
+podman run -d \
+  --name caddy \
+  --restart unless-stopped \
+  -p 80:80 \
+  -p 443:443 \
+  -v ./Caddyfile:/etc/caddy/Caddyfile:ro \
+  -v ./pki/root_ca.crt:/etc/caddy/step-root-ca.crt:ro \
+  -v ./caddy-data:/data:Z \
+  -v ./caddy-config:/config:Z \
+  docker.io/library/caddy:2
+```
+
+If SELinux labels are already handled externally, remove `:Z`.
+
+## Podman Compose template
+
+```yaml
+services:
+  caddy:
+    image: docker.io/library/caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./pki/root_ca.crt:/etc/caddy/step-root-ca.crt:ro
+      - ./caddy-data:/data:Z
+      - ./caddy-config:/config:Z
+```
+
+## Tailscale + private IP best practices
+
+- If you terminate TLS on a private LAN IP and a Tailscale IP, define each as its own site label and explicitly use ACME issuer config.
+- Keep SANs minimal and intentional; do not request broad names unless required.
+- Do not depend on implicit global defaults for issuer choice on internal labels.
+- Keep `/data` persistent; without it, certs/accounts are recreated and can cause churn.
+- Validate certificate issuer after reloads (expect your `step-ca` chain, not `Caddy Local Authority`).
+
+## Validation checklist
+
+```bash
+# Validate Caddyfile syntax
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+# Reload and watch logs
+caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+journalctl -u caddy -f
+
+# Container logs (Podman)
+podman logs -f caddy
+
+# Confirm ACME directory reachable from container
+podman exec -it caddy wget -qO- https://192.168.3.225:9000/acme/acme/directory
+
+# Check leaf issuer from a client
+openssl s_client -connect 192.168.3.50:443 -servername 192.168.3.50 </dev/null 2>/dev/null | openssl x509 -noout -issuer -subject
+```
+
+## Troubleshooting quick hits
+
+### Still seeing `Caddy Local Authority`
+
+- Ensure site has explicit `tls { issuer acme { ... } }`, or global `cert_issuer acme { ... }`.
+- Reload Caddy after config changes.
+- Confirm no `tls internal` remains in that site.
+- Confirm the certificate currently served is freshly issued (not old cache entry).
+
+### ACME endpoint trust failure in container
+
+- Verify mounted root file exists in container at `/etc/caddy/step-root-ca.crt`.
+- Ensure `trusted_roots` points to the same in-container path.
+- Verify CA URL from inside container (`podman exec ...`).
+
+### Renewal instability
+
+- Keep container `/data` volume persistent.
+- Avoid frequent destructive container recreation.
+- Check `podman logs caddy` for ACME challenge/issuer errors.
+
+## Operational recommendation
+
+For SOC 2-friendly consistency, standardize on:
+
+- Pattern A (per-site explicit ACME issuer) for internal IP/Tailscale labels.
+- Rootless Podman with mounted CA root PEM and persistent `/data`.
+- A short validation run (`caddy validate`, reload, issuer check) in every config change workflow.

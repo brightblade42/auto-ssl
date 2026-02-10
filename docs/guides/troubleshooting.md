@@ -195,6 +195,51 @@ sudo chmod 644 /etc/ssl/auto-ssl/server.crt
 sudo chmod 600 /etc/ssl/auto-ssl/server.key
 ```
 
+### Caddy serves `Caddy Local Authority` instead of step-ca cert
+
+**Symptoms**:
+
+- Site is configured with internal/private IP host labels.
+- Global `acme_ca` is set to step-ca.
+- Served cert issuer is still `Caddy Local Authority`.
+
+**Cause**: For internal/private labels, Caddy may choose its local/internal issuer unless ACME issuer selection is explicit.
+
+**Fix**:
+
+Use one of these patterns:
+
+1. Per-site explicit ACME issuer:
+
+```caddyfile
+https://192.168.3.50 {
+    tls {
+        issuer acme {
+            dir https://192.168.3.225:9000/acme/acme/directory
+            trusted_roots /etc/caddy/step-root-ca.crt
+        }
+    }
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+2. Global default ACME issuer:
+
+```caddyfile
+{
+    cert_issuer acme {
+        dir https://192.168.3.225:9000/acme/acme/directory
+        trusted_roots /etc/caddy/step-root-ca.crt
+    }
+}
+```
+
+Then reload Caddy and confirm issuer:
+
+```bash
+openssl s_client -connect 192.168.3.50:443 -servername 192.168.3.50 </dev/null 2>/dev/null | openssl x509 -noout -issuer -subject
+```
+
 ## Remote Enrollment Issues
 
 ### SSH Connection Fails
