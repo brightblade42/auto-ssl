@@ -50,7 +50,8 @@ You're building internal tools. They need HTTPS. Your options are:
 - **CA backup & restore** — Encrypted backups to local, rsync, or S3/Wasabi
 - **Certificate revocation** — Revoke compromised certs immediately
 - **Server suspension** — Temporarily block renewals for maintenance
-- **Interactive TUI** — Beautiful terminal UI for setup and management
+- **Bash-first runtime** — Core workflows run directly through `auto-ssl`
+- **Optional bootstrap companion** — `auto-ssl-tui` handles packaging/runtime helper tasks
 - **Ejectable Bash runtime** — `dump-bash` exports standalone scripts when needed
 
 ## Quick Start
@@ -92,20 +93,11 @@ sudo auto-ssl client trust \
   --fingerprint <fingerprint-from-step-1>
 ```
 
-Or use the **interactive TUI**:
-
-```bash
-auto-ssl-tui
-```
-
 ## auto-ssl-tui (Single Binary)
 
-`auto-ssl-tui` now embeds the Bash runtime so you can carry one binary and run both TUI and helper CLI workflows.
+`auto-ssl-tui` embeds the Bash runtime and provides bootstrap/helper commands. Core operations should run via `auto-ssl`.
 
 ```bash
-# Launch TUI
-auto-ssl-tui
-
 # Show embedded dependency status
 auto-ssl-tui doctor
 
@@ -120,12 +112,6 @@ auto-ssl-tui dump-bash --output ./auto-ssl-bash --checksum
 
 # Run embedded auto-ssl directly
 auto-ssl-tui exec -- server status
-```
-
-For CA/server/trust/dependency-install workflows on Linux, run TUI with sudo:
-
-```bash
-sudo auto-ssl-tui
 ```
 
 ## Linux Validation Script
@@ -187,6 +173,8 @@ make install
 ```
 
 `make install` installs `auto-ssl-tui` plus an `auto-ssl` compatibility wrapper that runs `auto-ssl-tui exec -- ...`.
+
+You can treat `auto-ssl-tui` as optional bootstrap tooling and use `auto-ssl` directly for day-to-day operations.
 
 ## CLI Reference
 
@@ -271,7 +259,6 @@ backup:
 
 - [Smallstep step-ca](https://smallstep.com/docs/step-ca) — The actual CA engine
 - [Smallstep step CLI](https://smallstep.com/docs/step-cli) — Certificate operations
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
 - [gum](https://github.com/charmbracelet/gum) — Enhanced bash prompts
 
 ## License

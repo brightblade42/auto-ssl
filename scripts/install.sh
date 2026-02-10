@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # auto-ssl installer
-# Installs auto-ssl-tui plus a compatibility auto-ssl wrapper
+# Installs auto-ssl-tui helper plus a compatibility auto-ssl wrapper
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/Brightblade42/auto-ssl/main/scripts/install.sh | bash
@@ -125,11 +125,11 @@ install_from_source() {
     log_info "Cloning repository..."
     git clone --depth 1 "https://github.com/${REPO}.git" "$tmp_dir/auto-ssl"
     
-    # Build TUI
+    # Build companion helper
     if ! command -v go &>/dev/null; then
         die "Go is required for --from-source installs"
     fi
-    log_info "Building auto-ssl-tui..."
+    log_info "Building auto-ssl-tui companion..."
     cd "${tmp_dir}/auto-ssl/tui"
     go build -o "${tmp_dir}/auto-ssl-tui" ./cmd/auto-ssl
 
@@ -152,7 +152,7 @@ install_from_release() {
     tmp_dir=$(mktemp -d)
     trap "rm -rf '$tmp_dir'" EXIT
     
-    # Download and install TUI binary
+    # Download and install companion binary
     download_release "$os" "$arch" "${tmp_dir}/auto-ssl-tui"
 
     install -d "${INSTALL_PREFIX}/bin"
@@ -175,7 +175,7 @@ install_dependencies() {
     
     log_info "Checking for optional dependencies..."
     
-    # gum (optional but recommended for better UI)
+    # gum (optional but recommended for improved prompts)
     if ! command -v gum &>/dev/null; then
         log_info "Installing gum for enhanced CLI experience..."
         case "$distro" in
@@ -199,7 +199,7 @@ gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
                 sudo apt update 2>/dev/null && sudo apt install -y gum 2>/dev/null || log_warning "Could not install gum"
                 ;;
             *)
-                log_warning "Cannot auto-install gum. Install manually for better UI experience."
+                log_warning "Cannot auto-install gum. Install manually for enhanced prompt UX."
                 ;;
         esac
     fi
@@ -228,8 +228,9 @@ show_completion() {
     echo "  # Trust CA on client machines"
     echo "  sudo auto-ssl client trust --ca-url https://CA_IP:9000 --fingerprint FINGERPRINT"
     echo ""
-    echo "  # Or use the interactive TUI"
-    echo "  auto-ssl-tui"
+    echo "  # Companion helper commands"
+    echo "  auto-ssl-tui doctor"
+    echo "  auto-ssl-tui exec -- server status"
     echo ""
     echo "Documentation: https://github.com/${REPO}"
     echo ""

@@ -391,11 +391,11 @@ auto-ssl [command] --help
 
 ## auto-ssl-tui Companion CLI
 
-`auto-ssl-tui` runs the interactive interface by default and also exposes a small helper CLI.
+`auto-ssl-tui` is a bootstrap/helper companion for packaging, dependency checks, runtime extraction, and command pass-through.
 
 ### `auto-ssl-tui --version`
 
-Show TUI build version.
+Show companion build version.
 
 ### `auto-ssl-tui doctor [--json]`
 
@@ -420,7 +420,7 @@ auto-ssl-tui dump-bash [--output DIR] [--force] [--print-path] [--checksum]
 
 ### `auto-ssl-tui exec -- <args...>`
 
-Run the embedded `auto-ssl` runtime without launching the TUI.
+Run the embedded `auto-ssl` runtime directly.
 
 ## Exit Codes
 
