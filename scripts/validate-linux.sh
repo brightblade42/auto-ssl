@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BINARY="${BINARY:-./bin/auto-ssl-tui}"
+BINARY="${BINARY:-./bin/auto-ssl}"
 CA_NAME="${CA_NAME:-Validation CA}"
 CA_ADDRESS="${CA_ADDRESS:-}"
 REMOTE_HOST="${REMOTE_HOST:-}"
@@ -24,6 +24,14 @@ need_cmd() {
 run() {
     printf "[cmd] %s\n" "$*"
     "$@"
+}
+
+run_tools() {
+    if [[ "$(basename "$BINARY")" == "auto-ssl" ]]; then
+        run "$BINARY" tools "$@"
+    else
+        run "$BINARY" "$@"
+    fi
 }
 
 main() {
@@ -58,15 +66,15 @@ main() {
 
     log "Companion CLI smoke"
     run "$BINARY" --version
-    run "$BINARY" doctor
-    run "$BINARY" doctor --json
+    run_tools doctor
+    run_tools doctor --json
     run "$BINARY" exec -- version
 
     log "Dependency bootstrap"
-    run "$BINARY" install-deps --yes
+    run_tools install-deps --yes
 
     log "Dump embedded bash runtime"
-    run "$BINARY" dump-bash --output "$DUMP_DIR" --force --checksum --print-path
+    run_tools dump-bash --output "$DUMP_DIR" --force --checksum --print-path
     [[ -x "${DUMP_DIR}/auto-ssl" ]] || die "Dumped auto-ssl is not executable"
     [[ -f "${DUMP_DIR}/CHECKSUMS.txt" ]] || die "Checksum manifest missing"
 

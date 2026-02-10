@@ -23,8 +23,8 @@ build: build-helper ## Build auto-ssl companion binary
 
 build-helper: ## Build the Go bootstrap/helper companion
 	@echo "Building auto-ssl companion..."
-	cd tui && go build $(GO_LDFLAGS) -o ../bin/auto-ssl-tui ./cmd/auto-ssl
-	@echo "Built: bin/auto-ssl-tui"
+	cd tui && go build $(GO_LDFLAGS) -o ../bin/auto-ssl ./cmd/auto-ssl
+	@echo "Built: bin/auto-ssl"
 
 build-tui: build-helper ## Backward-compatible alias
 
@@ -32,21 +32,20 @@ build-tui: build-helper ## Backward-compatible alias
 # Install targets
 #--------------------------------------------------
 
-install: install-helper install-wrapper ## Install auto-ssl-tui and auto-ssl wrapper
+install: install-helper ## Install auto-ssl companion commands
 	@echo "Installation complete"
 
 install-helper: ## Install Go bootstrap/helper companion
 	@echo "Installing companion helper..."
-	install -m 755 bin/auto-ssl-tui $(INSTALL_DIR)/auto-ssl-tui
-	@echo "Companion installed to $(INSTALL_DIR)/auto-ssl-tui"
+	install -d $(INSTALL_DIR)
+	install -m 755 bin/auto-ssl $(INSTALL_DIR)/auto-ssl
+	ln -sf auto-ssl $(INSTALL_DIR)/auto-ssl-tui
+	@echo "Installed $(INSTALL_DIR)/auto-ssl (primary)"
+	@echo "Installed $(INSTALL_DIR)/auto-ssl-tui (compat alias)"
 
 install-tui: install-helper ## Backward-compatible alias
 
-install-wrapper: ## Install auto-ssl compatibility wrapper
-	@echo "Installing auto-ssl wrapper..."
-	install -d $(INSTALL_DIR)
-	install -m 755 scripts/auto-ssl-wrapper.sh $(INSTALL_DIR)/auto-ssl
-	@echo "Wrapper installed to $(INSTALL_DIR)/auto-ssl"
+install-wrapper: install-helper ## Backward-compatible alias
 
 install-completions: ## Install shell completions
 	@echo "Installing shell completions..."
@@ -95,13 +94,13 @@ dist: ## Build release binaries for all platforms
 	@echo "Building release binaries..."
 	mkdir -p dist
 	# Linux AMD64
-	cd tui && GOOS=linux GOARCH=amd64 go build $(GO_LDFLAGS) -o ../dist/auto-ssl-tui-linux-amd64 ./cmd/auto-ssl
+	cd tui && GOOS=linux GOARCH=amd64 go build $(GO_LDFLAGS) -o ../dist/auto-ssl-linux-amd64 ./cmd/auto-ssl
 	# Linux ARM64
-	cd tui && GOOS=linux GOARCH=arm64 go build $(GO_LDFLAGS) -o ../dist/auto-ssl-tui-linux-arm64 ./cmd/auto-ssl
+	cd tui && GOOS=linux GOARCH=arm64 go build $(GO_LDFLAGS) -o ../dist/auto-ssl-linux-arm64 ./cmd/auto-ssl
 	# macOS AMD64
-	cd tui && GOOS=darwin GOARCH=amd64 go build $(GO_LDFLAGS) -o ../dist/auto-ssl-tui-darwin-amd64 ./cmd/auto-ssl
+	cd tui && GOOS=darwin GOARCH=amd64 go build $(GO_LDFLAGS) -o ../dist/auto-ssl-darwin-amd64 ./cmd/auto-ssl
 	# macOS ARM64
-	cd tui && GOOS=darwin GOARCH=arm64 go build $(GO_LDFLAGS) -o ../dist/auto-ssl-tui-darwin-arm64 ./cmd/auto-ssl
+	cd tui && GOOS=darwin GOARCH=arm64 go build $(GO_LDFLAGS) -o ../dist/auto-ssl-darwin-arm64 ./cmd/auto-ssl
 	@echo "Release binaries built in dist/"
 
 #--------------------------------------------------
