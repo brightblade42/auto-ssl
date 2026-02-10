@@ -1,7 +1,7 @@
 # auto-ssl Makefile
-# Build and install targets for the Go companion binary
+# Build and install targets for the Go bootstrap companion
 
-.PHONY: all build build-tui install install-tui install-wrapper clean test help
+.PHONY: all build build-helper build-tui install install-helper install-tui install-wrapper clean test help
 
 # Variables
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -18,25 +18,29 @@ all: build
 # Build targets
 #--------------------------------------------------
 
-build: build-tui ## Build auto-ssl companion binary
+build: build-helper ## Build auto-ssl companion binary
 	@echo "Build complete"
 
-build-tui: ## Build the Go TUI application
-	@echo "Building auto-ssl TUI..."
+build-helper: ## Build the Go bootstrap/helper companion
+	@echo "Building auto-ssl companion..."
 	cd tui && go build $(GO_LDFLAGS) -o ../bin/auto-ssl-tui ./cmd/auto-ssl
 	@echo "Built: bin/auto-ssl-tui"
+
+build-tui: build-helper ## Backward-compatible alias
 
 #--------------------------------------------------
 # Install targets
 #--------------------------------------------------
 
-install: install-tui install-wrapper ## Install auto-ssl-tui and auto-ssl wrapper
+install: install-helper install-wrapper ## Install auto-ssl-tui and auto-ssl wrapper
 	@echo "Installation complete"
 
-install-tui: ## Install Go TUI application
-	@echo "Installing TUI..."
+install-helper: ## Install Go bootstrap/helper companion
+	@echo "Installing companion helper..."
 	install -m 755 bin/auto-ssl-tui $(INSTALL_DIR)/auto-ssl-tui
-	@echo "TUI installed to $(INSTALL_DIR)/auto-ssl-tui"
+	@echo "Companion installed to $(INSTALL_DIR)/auto-ssl-tui"
+
+install-tui: install-helper ## Backward-compatible alias
 
 install-wrapper: ## Install auto-ssl compatibility wrapper
 	@echo "Installing auto-ssl wrapper..."
@@ -57,8 +61,8 @@ install-completions: ## Install shell completions
 # Development targets
 #--------------------------------------------------
 
-dev: ## Run TUI in development mode
-	cd tui && go run ./cmd/auto-ssl
+dev: ## Run helper CLI in development mode
+	cd tui && go run ./cmd/auto-ssl --help
 
 test: ## Run all tests
 	cd tui && go test -v ./...

@@ -45,8 +45,8 @@ Technical overview of auto-ssl's architecture and components.
 
 **Components**:
 - `step-ca` - The actual CA server (Go binary)
-- `auto-ssl` - Management wrapper (Bash)
-- `auto-ssl-tui` - Companion TUI/CLI that embeds and orchestrates `auto-ssl`
+- `auto-ssl` - Canonical management runtime (Bash)
+- `auto-ssl-tui` - Optional bootstrap/helper companion for packaging and runtime extraction
 - `step` CLI - Certificate operations
 
 **Key Files**:
@@ -105,6 +105,56 @@ Technical overview of auto-ssl's architecture and components.
 
 **Network**:
 - Outbound: Port 443/TCP to application servers
+
+## Go Bootstrap Contract (Minimal Wrapper Policy)
+
+`auto-ssl` is Bash-first. Any compiled companion is optional and must stay a thin bootstrap layer.
+
+### Purpose
+
+The wrapper exists only to improve distribution and bootstrap ergonomics, not to own product behavior.
+
+Allowed responsibilities:
+
+- Package and extract embedded Bash runtime assets
+- Install/update runtime files atomically
+- Expose helper utilities (`doctor`, `install-deps`, `dump-bash`)
+- Execute Bash entrypoint via pass-through (`exec -- <args>`)
+
+Disallowed responsibilities:
+
+- Implement or duplicate CA/server/client/remote business logic
+- Parse or reinterpret `auto-ssl` command semantics
+- Maintain separate workflow state from Bash runtime
+- Provide feature-only paths unavailable in Bash CLI
+
+### Source of truth
+
+- Product logic: Bash runtime (`auto-ssl`)
+- Operational behavior: Bash command layer and scripts
+- Helper/runtime management: optional wrapper only
+
+If behavior differs between wrapper and Bash runtime, Bash runtime behavior is canonical.
+
+### Compatibility guarantees
+
+- `auto-ssl` remains directly runnable without the wrapper
+- Wrapper failures must degrade gracefully with clear fallback instructions to run `auto-ssl` directly
+- Wrapper must not require interactive UI/TUI for critical operations
+- All core workflows must be testable via non-interactive Bash commands
+
+### Change control rules
+
+Any wrapper PR must satisfy all of these:
+
+1. No net-new PKI/business logic in wrapper code
+2. No new user workflow that bypasses Bash command path
+3. Documentation updated if wrapper surface changes
+4. Linux validation still passes through Bash-first flows
+
+### Long-term evolution
+
+The wrapper language is replaceable. Future implementations (Go or otherwise) are acceptable only if they keep this contract and preserve Bash-first operation.
 
 ## Certificate Lifecycle
 

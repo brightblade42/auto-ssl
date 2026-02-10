@@ -10,9 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Brightblade42/auto-ssl/internal/app"
 	"github.com/Brightblade42/auto-ssl/internal/runtime"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 var (
@@ -23,52 +21,65 @@ var (
 func main() {
 	manager := runtime.NewManager(Version)
 
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "--version", "-v", "version":
-			fmt.Printf("auto-ssl-tui version %s (built %s)\n", Version, BuildTime)
-			return
-		case "dump-bash":
-			if err := runDumpBash(manager, os.Args[2:]); err != nil {
-				fmt.Fprintf(os.Stderr, "dump-bash failed: %v\n", err)
-				os.Exit(1)
-			}
-			return
-		case "doctor":
-			if err := runDoctor(os.Args[2:]); err != nil {
-				fmt.Fprintf(os.Stderr, "doctor failed: %v\n", err)
-				os.Exit(1)
-			}
-			return
-		case "install-deps":
-			autoYes := false
-			for _, arg := range os.Args[2:] {
-				if arg == "--yes" {
-					autoYes = true
-				}
-			}
-			if err := runtime.InstallDependencies(autoYes); err != nil {
-				fmt.Fprintf(os.Stderr, "install-deps failed: %v\n", err)
-				os.Exit(1)
-			}
-			return
-		case "exec":
-			if err := runExec(manager, os.Args[2:]); err != nil {
-				fmt.Fprintf(os.Stderr, "exec failed: %v\n", err)
-				os.Exit(1)
-			}
-			return
+	if len(os.Args) <= 1 {
+		printUsage()
+		os.Exit(2)
+	}
+
+	switch os.Args[1] {
+	case "--version", "-v", "version":
+		fmt.Printf("auto-ssl-tui version %s (built %s)\n", Version, BuildTime)
+		return
+	case "--help", "-h", "help":
+		printUsage()
+		return
+	case "dump-bash":
+		if err := runDumpBash(manager, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "dump-bash failed: %v\n", err)
+			os.Exit(1)
 		}
+		return
+	case "doctor":
+		if err := runDoctor(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "doctor failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	case "install-deps":
+		autoYes := false
+		for _, arg := range os.Args[2:] {
+			if arg == "--yes" {
+				autoYes = true
+			}
+		}
+		if err := runtime.InstallDependencies(autoYes); err != nil {
+			fmt.Fprintf(os.Stderr, "install-deps failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	case "exec":
+		if err := runExec(manager, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "exec failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
+		printUsage()
+		os.Exit(2)
 	}
 
-	// Create and run the application
-	application := app.New(Version, manager)
-	p := tea.NewProgram(application, tea.WithAltScreen())
+}
 
-	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running application: %v\n", err)
-		os.Exit(1)
-	}
+func printUsage() {
+	fmt.Println("auto-ssl-tui - bootstrap/helper companion for auto-ssl")
+	fmt.Println("")
+	fmt.Println("Usage:")
+	fmt.Println("  auto-ssl-tui --version")
+	fmt.Println("  auto-ssl-tui doctor [--json]")
+	fmt.Println("  auto-ssl-tui install-deps [--yes]")
+	fmt.Println("  auto-ssl-tui dump-bash [--output DIR] [--force] [--print-path] [--checksum]")
+	fmt.Println("  auto-ssl-tui exec -- <auto-ssl args>")
 }
 
 func runDumpBash(manager *runtime.Manager, args []string) error {

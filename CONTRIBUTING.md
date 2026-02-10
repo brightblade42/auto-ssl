@@ -122,11 +122,12 @@ EOF
 }
 ```
 
-### Go Code (TUI)
+### Go Code (Bootstrap Companion)
 
 - Follow standard Go conventions
 - Use `gofmt` for formatting
 - Add comments for exported functions
+- Keep scope limited to bootstrap/helper concerns
 - Write tests for new features
 - Run `go vet` and `golangci-lint`
 
@@ -185,7 +186,7 @@ Test your changes on:
 ### Prerequisites
 
 - Bash 4+
-- Go 1.21+ (for TUI)
+- Go 1.21+ (for bootstrap companion)
 - make
 - git
 
@@ -196,8 +197,8 @@ Test your changes on:
 git clone https://github.com/Brightblade42/auto-ssl.git
 cd auto-ssl
 
-# Build TUI
-make build-tui
+# Build companion helper
+make build-helper
 
 # Install locally (requires sudo)
 sudo make install
@@ -211,10 +212,10 @@ vim tui/internal/runtime/assets/bash/commands/server.sh
 bash -n tui/internal/runtime/assets/bash/commands/server.sh  # syntax check
 sudo auto-ssl server status      # test
 
-# Work on TUI
+# Work on companion helper
 cd tui
-vim internal/app/app.go
-go run ./cmd/auto-ssl  # test
+vim cmd/auto-ssl/main.go
+go run ./cmd/auto-ssl --help  # test
 go test ./...          # run tests
 ```
 
